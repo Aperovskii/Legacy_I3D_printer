@@ -8,6 +8,8 @@
 #include <Arduino.h>
 /// COMPACT OOP CIRULAR
 
+#pragma region structures and class related things
+
 struct PointF {
   float x;
   float y;
@@ -51,145 +53,6 @@ struct dose {
   float pwr = 0;
 };
 
-volatile long int lastStep;
-long int lastMessage = 0;
-
-///////////// STEPPER AND DRIVER RELATED PARAMETERS - to be changed ONLY after switching levers on corresponding stepper drivers
-// Microstep setting for x and y
-const int mst = 2;
-// Steps for complete rotation
-const int spr = 200;
-
-//Microstep setting for z
-
-const int mstZ = 4;
-
-//mm to steps conversion coefficient for X and Y
-long int mtos = long(spr) * mst / 8;
-
-//mm to steps conversion coefficient for Z
-long int mtosZ = long(spr) * mstZ / 8;
-
-//%
-float purgePWR = 80;
-////////////////////PINS
-
-//AXIS Y
-const int dirYPin = 2;
-const int pulYPin = 3;
-
-//AXIS X
-const int dirXPin = 4;
-const int pulXPin = 5;
-
-//AXIS Z
-const int dirZPin = 6;
-const int pulZPin = 7;
-
-//PINS
-const int ESPin9 = 9;
-const int ESPin10 = 10;
-const int ESPin11 = 11;
-const int ESPin12 = 12;
-
-//BUTTONS
-const int HomePin = 19;
-const int PurgePin = 18;
-
-//LED
-const int LED1 = 16;
-
-//SERVO CONTROL PINS
-// Switch on motor (low off, high on)
-const int SRVONPin = 26;
-
-// Check state
-const int SRDY = 24;
-
-
-//SECURITY PINS FOR BUTTONS
-const int sPin = 17;
-
-//RECHARGE CONTROL PANEL PINS
-//recharge button pin. Normally closed
-const int cPin;
-const int ledFullPin;
-const int ledEmptyPin;
-
-/////////////////////////////STATE
-//actual position in steps - main position. Position in mm is calculated as function
-
-long int actstep[3] = { 0, 0, 0 };
-
-//target position
-
-long int dpos[3] = { 0, 0, 0 };
-
-long int actcent[3] = { 0, 0, 0 };
-
-//arc-related parameters
-
-long int rad;
-
-//arc angle of opening
-float ao;
-
-//////////////////////////////
-int value;
-
-//1 - mm, 0 - in
-bool units = 1;
-
-bool incr = true;
-
-//DEFAULT SPEED SETTINGS //////////////////////////////
-//Default feedrate in steps/s
-int feedrate = 1000;
-
-//jogging speed in steps/s
-int jspeed = 1900;
-
-//rapid deplacement command, also jogging
-int G0Speed = 1000;
-int G0SpeedZ = G0Speed * 4;
-
-//jogging timeout
-unsigned long jto = round(1000000 / jspeed);
-
-unsigned long jtoZ = round(jto * 0.6);
-
-//homingspeed in steps/s
-
-const int homeSp = 1000;
-
-////////////////////////////////////////////////////////
-//debouncing after homing
-const long int db = 150;
-
-//step - speed, mm
-int sps = 1;
-//step - EcoPen, %
-float eps = 1;
-
-float stepEco = 3;
-float stepPump = 3;
-float stepMix = 3;
-
-//pressure
-
-//Coefficient to transform V into bar
-// 5V max instead of 10V, 1/2 interval so 0-20bar =
-
-// Conversion coefficient for sensor data in un/V
-
-// Pa/V
-float pressCoef = 4.0;
-float pressure;
-
-// N*m/V
-float torqCoef = 1.0;
-float torque;
-
 ///SUBSYSTEMS
 AD5593R AD5593RR(23);
 
@@ -203,15 +66,12 @@ Dosage EcoPen(0, 0, stepEco);
 Dosage PumpPro(1, 0, stepPump);
 Dosage Mixer(2, 0, stepMix);
 
-volatile bool PurgePressed = false;  // Volatile variable for button state
-volatile bool HomePressed = false;
-
-volatile bool waitON = true;
-
-unsigned long lastPurgeInterruptTime = 0;  // Shared timestamp for debounce
-
 movement Movement;
 dose Dose;
+
+#pragma endregion
+
+#pragma region FLAGS 
 
 //Indicates if a move is needed
 bool flagM = 0;
@@ -258,20 +118,126 @@ bool flagMix = 0;
 bool moveList = false;
 //Dosage state
 
-//Dwell time
-int timeDwell = -1;
+#pragma endregion
 
-String state;
 
-/////////////////////////////////////////V2 upgrade - now the speed is registered for axes X and Y. It is marked for the last iteration
+volatile long int lastStep;
+long int lastMessage = 0;
+
+
+
+///////////// STEPPER AND DRIVER RELATED PARAMETERS - to be changed ONLY after switching levers on corresponding stepper drivers
+
+
+//%
+float purgePWR = 80;
+////////////////////PINS
+
+#pragma region GPIO pins setup
+
+//AXIS Y
+const int dirYPin = 2;
+const int pulYPin = 3;
+
+//AXIS X
+const int dirXPin = 4;
+const int pulXPin = 5;
+
+//AXIS Z
+const int dirZPin = 6;
+const int pulZPin = 7;
+
+//PINS
+const int ESPin9 = 9;
+const int ESPin10 = 10;
+const int ESPin11 = 11;
+const int ESPin12 = 12;
+
+//BUTTONS
+const int HomePin = 19;
+const int PurgePin = 18;
+
+//LED
+const int LED1 = 16;
+
+//SERVO CONTROL PINS
+// Switch on motor (low off, high on)
+const int SRVONPin = 26;
+
+// Check state
+const int SRDY = 24;
+
+
+//SECURITY PINS FOR BUTTONS
+const int sPin = 17;
+
+//RECHARGE CONTROL PANEL PINS
+//recharge button pin. Normally closed
+const int cPin;
+const int ledFullPin;
+const int ledEmptyPin;
+
+#pragma endregion
+
+#pragma region MOVEMENT PARAMETERS
+
+long int actstep[3] = { 0, 0, 0 };
+
+long int dpos[3] = { 0, 0, 0 };
+
+long int actcent[3] = { 0, 0, 0 };
+
+//1 - mm, 0 - in
+bool units = 1;
+
+bool incr = true;
+
+// Steps for complete rotation
+const int spr = 200;
+
+//Microstep setting for z
+
+const int mstZ = 4;
+
+//mm to steps conversion coefficient for X and Y
+long int mtos = long(spr) * mst / 8;
+
+//mm to steps conversion coefficient for Z
+long int mtosZ = long(spr) * mstZ / 8;
+
+
+//DEFAULT SPEED SETTINGS //////////////////////////////
+//Default feedrate in steps/s
+int feedrate = 1000;
+
+//jogging speed in steps/s
+int jspeed = 1900;
+
+//rapid deplacement command, also jogging
+int G0Speed = 1000;
+int G0SpeedZ = G0Speed * 4;
+
+//jogging timeout
+unsigned long jto = round(1000000 / jspeed);
+
+unsigned long jtoZ = round(jto * 0.6);
+
+//homingspeed in steps/s
+
+const int homeSp = 1000;
+////////////////////////////////////////////////////////
+//debouncing after homing
+const long int db = 150;
+
+// Microstep setting for x and y
+const int mst = 2;
+
+/////////////////////////////STATE
+//actual position in steps - main position. Position in mm is calculated as function
 
 //Current target speed
 int targetV;
 
-bool serialInitialized = false;
-bool firstSerialRead = true;
-
-void inputCommand();
 
 //limit velocity - it is a highest safe speed to start from
 
@@ -280,36 +246,11 @@ int limspeed = 1500;
 //Accelerating mode will make the interval smaller during this number of steps
 //Default value, will be recalculated
 int accsteps = 1200;
-///////////////////////////////////////////
-
-#define QUEUE_SIZE 100  // Размер очереди команд
-
-//x move
-
-String commandQueue[QUEUE_SIZE];  // Массив для хранения команд
-int queueHead = 0;                // Указатель на начало очереди
-int queueTail = 0;                // Указатель на конец очереди
-int queueCount = 0;               // Текущее количество команд в очереди
 
 //Coordinate limits, steps
 
 
 long int lim[3] = { 375 * mtos, 375 * mtos, 975 * mtosZ };
-
-/// Special serial commands
-
-// if a run is active, following commands can be used to modify the dosing parameters and speed
-
-// '(' - increases the EcoPen power
-// ')' - reduces the EcoPen power
-// '+' - increases the speed
-// '-' - reduces the speed
-
-float oldValue;
-
-//////////////////////////////////////////////////////////////////////////////
-
-volatile long int timeout;
 
 //current coord
 volatile long int posX;
@@ -326,6 +267,72 @@ volatile bool pX;
 volatile bool pY;
 volatile bool pZ;
 
+#pragma endregion
+
+//////////////////////////////
+#pragma region INPUT PARAMETERS
+
+int value;
+
+
+//step - speed, mm
+int sps = 1;
+//step - EcoPen, %
+float eps = 1;
+
+float stepEco = 3;
+float stepPump = 3;
+float stepMix = 3;
+
+bool serialInitialized = false;
+bool firstSerialRead = true;
+
+void inputCommand();
+
+String commandQueue[QUEUE_SIZE];  // Массив для хранения команд
+int queueHead = 0;                // Указатель на начало очереди
+int queueTail = 0;                // Указатель на конец очереди
+int queueCount = 0;               // Текущее количество команд в очереди
+
+
+#pragma endregion
+
+
+#pragma region SENSORS
+
+// Pa/V
+float pressCoef = 4.0;
+float pressure;
+
+// N*m/V
+float torqCoef = 1.0;
+float torque;
+
+#pragma endregion
+
+#pragma region BUTTONS ON CASE
+volatile bool PurgePressed = false;  // Volatile variable for button state
+volatile bool HomePressed = false;
+
+volatile bool waitON = true;
+
+unsigned long lastPurgeInterruptTime = 0;  // Shared timestamp for debounce
+
+
+#pragma endregion
+//Dwell time
+int timeDwell = -1;
+
+String state;
+
+
+float oldValue;
+
+//////////////////////////////////////////////////////////////////////////////
+
+volatile long int timeout;
+
+#pragma region ISR and timer logic
 //checks if timer is running
 
 volatile bool timerRun;
@@ -336,7 +343,7 @@ volatile bool mX;
 volatile bool mY;
 volatile bool mZ;
 ///
-
+#pragma endregion
 // communication - state string sending
 
 // generated string
@@ -353,746 +360,117 @@ bool getNewState = true;
 void stopTimer();
 void setupTimer(unsigned long intervalMicroseconds);
 
-class Octant {
-public:
-  using DFunction = double (*)(long int&, long int&, double&);      // Decision making functions
-  using DR2Function = double (*)(long int&, long int&, long int&);  // Decision making functions
-  using BFunction = bool (*)(long int&, long int&);                 // Boundary checking functions
-
-
-  Octant(bool crcw, DR2Function DF0, DFunction DF1, DFunction DF2, BFunction b, bool xc, bool yc, bool xd, int nxO, bool msing, bool toX) {
-    _DFuncInitial = DF0;
-    _DFuncSingle = DF1;
-    _DFuncDouble = DF2;
-    _boundary = b;
-    _nextOctant = nxO;
-    _xcorr = xc;
-    _ycorr = yc;
-    _xd = xd;
-    _crw = crcw;
-    _minusSing = msing;
-    _toX = toX;
-  }
-
-  unsigned long circleTO(long int xy, long int r, int s) {
-
-    //Serial.print("xy is ");
-    //Serial.println(xy);
-
-    float d = float(xy) / float(r);
-
-    double Vxy = s * d;
-
-    //Serial.print("X/R is ");
-    //Serial.println(d);
-
-    //Serial.print("Vxy is ");
-    //Serial.println(Vxy);
-
-
-    unsigned long to = round(1000000 / abs(Vxy));
-
-    //Serial.print("Calculated timeout is ");
-    //Serial.print(to);
-    //Serial.println(" microseconds");
-
-    return to;
-  }
-
-  void updateOCR(long int intrvl) {
-    unsigned long cmv = (16000000 / (1024 * (1000000 / intrvl))) - 1;
-    OCR3A = cmv;
-  }
-
-  int getNextOct() {
-    return _nextOctant;
-  }
-
-  // This function formulates corrections and start the timer.
-  PointLI3 passOctant(long int& xstart, long int& ystart, long int& zstart, long int& xend, long int& yend, int& frate, int& r, long int& r2) {
-
-    //set directions of motors
-    int sgnx;
-    int sgny;
-
-    // X,Y,Z are coordinates in relation to the center xc, yc, zc
-
-    long int x = xstart;
-    long int y = ystart;
-    long int z = zstart;
-
-    PointLI3 crd;
-
-    bool dbl;  // indicates if a step is double or single
-
-    mX = false;
-    mY = false;
-    mZ = false;
-
-    if (_xcorr) {
-      sgnx = 1;
-      stepperX.setDirection(1);
-    } else {
-      sgnx = -1;
-      stepperX.setDirection(0);
-    }
-    //y is inverted
-    if (_ycorr) {
-      sgny = 1;
-      stepperY.setDirection(0);
-    } else {
-      sgny = -1;
-      stepperY.setDirection(1);
-    }
-
-    //Get initial F-value
-    double F = _DFuncInitial(xstart, ystart, r2);
-
-    // Gets initial move scenario, and updates coordinates
-    if (_minusSing) {
-      if (F < 0) {
-        if (_xd) {
-          mX = true;
-          mY = false;
-          x += sgnx;
-        } else {
-          mX = false;
-          mY = true;
-          y += sgny;
-        }
-        dbl = false;
-      } else {
-        mX = true;
-        mY = true;
-        dbl = true;
-        x += sgnx;
-        y += sgny;
-      }
-    } else {
-      if (F > 0) {
-        if (_xd) {
-          mX = true;
-          mY = false;
-          x += sgnx;
-        } else {
-          mX = false;
-          mY = true;
-          y += sgny;
-        }
-        dbl = false;
-      } else {
-        mX = true;
-        mY = true;
-        dbl = true;
-        x += sgnx;
-        y += sgny;
-      }
-    }
-    // setting the ticker to ready
-    tickWas = false;
-
-    //starting timer
-
-    if (_toX) {
-      setupTimer(circleTO(x, r, frate));
-    } else {
-      setupTimer(circleTO(y, r, frate));
-    }
-
-    while (_boundary(x, y) && !(abs(x - xend) <= 1 && abs(y - yend) <= 1) && !flagH) {
-      // This loops runs all the time until we arrive at goal
-      // once the ticker signals (so the step was done)
-
-      inputCommand();
-      //Serial.print("Boundary : ");
-      //Serial.println(_boundary(x,y));
-      if (tickWas) {
-
-        mX = 0;
-        mY = 0;
-        mZ = 0;
-
-        //Setting a correct new timeout
-        updateOCR(circleTO(x, r, frate));
-        //Correcting F
-        if (dbl) {
-          F = _DFuncDouble(x, y, F);
-        } else {
-          F = _DFuncSingle(x, y, F);
-        }
-
-        //Preparing next step
-        // Gets initial move scenario, and updates coordinates
-        if (_minusSing) {
-          if (F < 0) {
-            if (_xd) {
-              mX = true;
-              mY = false;
-              x += sgnx;
-            } else {
-              mX = false;
-              mY = true;
-              y += sgny;
-            }
-            dbl = false;
-          } else {
-            mX = true;
-            mY = true;
-            dbl = true;
-            x += sgnx;
-            y += sgny;
-          }
-        } else {
-          if (F > 0) {
-            if (_xd) {
-              mX = true;
-              mY = false;
-              x += sgnx;
-            } else {
-              mX = false;
-              mY = true;
-              y += sgny;
-            }
-            dbl = false;
-          } else {
-            mX = true;
-            mY = true;
-            dbl = true;
-            x += sgnx;
-            y += sgny;
-          }
-        }
-        //Serial.print("Coordinate updated :");
-        //Serial.print(x);
-        //Serial.print(" ");
-        //Serial.println(y);
-        //new step is ready. So now the timer signal is awaited
-        tickWas = false;
-      }
-    }
-    //Switch off timer
-    stopTimer();
-
-    //save x and y coordinates
-    crd.x = x;
-    crd.y = y;
-    crd.z = z;
-
-    return crd;  //Define end condition - end of the way, special condition or next quadrant
-  }
-
-private:
-  VStepper& _stepperX;  // Ссылка на объект двигателя по оси X
-  VStepper& _stepperY;  // Ссылка на объект двигателя по оси Y
-  VStepper& _stepperZ;
-
-  bool _crw;  // Direction of movement. We create 16 class instances. true - counterclockwise
-  DR2Function _DFuncInitial;
-  DFunction _DFuncSingle;  // Коррекция при обновлении одной координаты
-  DFunction _DFuncDouble;  // Коррекция при обновлении обеих координат
-
-  BFunction _boundary;  // Функция проверки границ по X
-
-  int _nextOctant;  // Индекс следующего октанта
-
-  bool _xcorr;      // Направление по X: true - x+=1, false - x-=1 Мы указываем это для направления против часовой стрелки
-  bool _ycorr;      // Направление по Y: true - y+=1, false - y-=1
-  bool _xd;         // Говорит, какая координата обновляется всегда. Если true - x, false - y
-  bool _minusSing;  // If true, single update is called when F<0. Else, if F>0;
-  bool _toX;        // if true, TO(x), false - TO(y)
-};
-
-
-Octant CCWOctant0(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 0.5) + sq(y + 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * y + 3;                                   // Пример: увеличиваем x
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (y - x) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return x > y;
-  },
-  false,  // Направление по X
-  true,   // Направление по Y
-  false,  // всегда меняется y
-  1,      // Номер следующего октанта
-  true,
-  true);
-
-Octant CCWOctant1(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 1) + sq(y + 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (y - x) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return x > 0;
-  },
-  false,  // Направление по X
-  true,   // Направление по Y
-  true,   // всегда меняется x
-  2,      // Номер следующего октанта
-  false,
-  false  // F<0 for single
-);
-
-Octant CCWOctant2(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 1) + sq(y - 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += -2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(y) > abs(x);
-  },
-  false,  // Направление по X
-  false,  // Направление по Y
-  true,   // всегда меняется x
-  3,      // Номер следующего октанта
-  true,
-  false);
-
-Octant CCWOctant3(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 0.5) + sq(y - 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += -2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return y > 0;
-  },
-  false,  // Направление по X
-  false,  // Направление по Y
-  false,  // всегда меняется x
-  4,      // Номер следующего октанта
-  false,
-  true);
-
-Octant CCWOctant4(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 0.5) + sq(y - 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x - y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(x) > abs(y);
-  },
-  true,   // Направление по X
-  false,  // Направление по Y
-  false,  // всегда меняется x
-  5,      // Номер следующего октанта
-  true,
-  true);
-
-Octant CCWOctant5(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 1) + sq(y - 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x - y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(x) > 0;
-  },
-  true,   // Направление по X
-  false,  // Направление по Y
-  true,   // всегда меняется x
-  6,      // Номер следующего октанта
-  false,
-  false);
-
-Octant CCWOctant6(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 1) + sq(y + 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(y) > abs(x);
-  },
-  true,  // Направление по X
-  true,  // Направление по Y
-  true,  // всегда меняется x
-  7,     // Номер следующего октанта
-  true,
-  false);
-
-Octant CCWOctant7(
-  true,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 0.5) + sq(y + 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(y) > 0;
-  },
-  true,   // Направление по X
-  true,   // Направление по Y
-  false,  // всегда меняется x
-  0,      // Номер следующего октанта
-  false,
-  true);
-
-
-//clockwise octants
-
-Octant CWOctant0(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 0.5) + sq(y - 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x - y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return y > 0;
-  },
-  true,   // Направление по X
-  false,  // Направление по Y
-  false,  // всегда меняется x
-  7,      // Номер следующего октанта
-  false,
-  true);
-
-Octant CWOctant1(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 1) + sq(y - 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x - y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return y > x;
-  },
-  true,   // Направление по X
-  false,  // Направление по Y
-  true,   // всегда меняется x
-  0,      // Номер следующего октанта
-  true,
-  false);
-
-Octant CWOctant2(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 1) + sq(y + 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return x < 0;
-  },
-  true,  // Направление по X
-  true,  // Направление по Y
-  true,  // всегда меняется x
-  1,     // Номер следующего октанта
-  false,
-  false);
-
-Octant CWOctant3(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x + 0.5) + sq(y + 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(x) > abs(y);
-  },
-  true,   // Направление по X
-  true,   // Направление по Y
-  false,  // всегда меняется x
-  2,      // Номер следующего октанта
-  true,
-  true);
-
-Octant CWOctant4(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 0.5) + sq(y + 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += 2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (y - x) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(y) > 0;
-  },
-  false,  // Направление по X
-  true,   // Направление по Y
-  false,  // всегда меняется x
-  3,      // Номер следующего октанта
-  false,
-  true);
-
-Octant CWOctant5(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 1) + sq(y + 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += 2 * (y - x) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(x) < abs(y);
-  },
-  false,  // Направление по X
-  true,   // Направление по Y
-  true,   // всегда меняется x
-  4,      // Номер следующего октанта
-  true,
-  false);
-
-Octant CWOctant6(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 1) + sq(y - 0.5) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * x + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += -2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return x > 0;
-  },
-  false,  // Направление по X
-  false,  // Направление по Y
-  true,   // всегда меняется x
-  5,      // Номер следующего октанта
-  false,
-  false);
-
-Octant CWOctant7(
-  false,
-  [](long int& x, long int& y, long int& r2) -> double {  // F-function
-    double F;
-    F = sq(x - 0.5) + sq(y - 1) - r2;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки одной координаты
-    F += -2 * y + 3;
-    return F;
-  },
-  [](long int& x, long int& y, double F) -> double {  // Лямбда для корректировки обеих координат
-    F += -2 * (x + y) + 5;
-    return F;
-  },
-  [](long int& x, long int& y) -> bool {  // Лямбда для проверки границы по Y
-    return abs(x) > abs(y);
-  },
-  false,  // Направление по X
-  false,  // Направление по Y
-  false,  // всегда меняется x
-  6,      // Номер следующего октанта
-  true,
-  true);
-///////
-
 // timestamp for state strings
 long int tmt;
 
-void setup() {
-  Serial.begin(1000000);
-  Serial.println(logM("Printer restarted, ready"));
-  Serial.print("jTO : ");
-  Serial.println(jto);
+// FUNCTIONSSSSSSS
 
-  pinMode(HomePin, INPUT_PULLUP);
-  pinMode(PurgePin, INPUT_PULLUP);  // Set the button pin as an input
-  attachInterrupt(digitalPinToInterrupt(HomePin), HomeISR, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PurgePin), PurgeISR, RISING);
-  stepperX.invertDir();
-  //stepperY.invertDir();
-  pinMode(ESPin11, INPUT);
-  pinMode(ESPin12, INPUT);
-  pinMode(LED1, OUTPUT);
-  pinMode(sPin, OUTPUT);
-  pinMode(SRVONPin, OUTPUT);
-  pinMode(SRDY, INPUT);
+#pragma region Timer operating functions
 
-  //INITIALLY ALL ACTIONS ARE AVAILABLE
-  digitalWrite(sPin, HIGH);
-  digitalWrite(LED1, LOW);
+// Information timer
 
-  Serial.println("Preparation done");
-  initializeDAC();
-  //initializing timers
-  connectUpdate();
+void setupTimerInfo(unsigned long intervalMicroseconds) {
+  // Сбросить все регистры управления
+  TCCR4A = 0;
+  TCCR4B = 0;
 
-  //delay(2000);
-  //motor on by default
-  //startMotor();
+  // Установить режим CTC (Clear Timer on Compare Match)
+  TCCR4B |= (1 << WGM12);
 
-  // Start and stop timers to ensure their correct state
-  setupTimerLin(jtoZ);
-  stopTimerLin();
+  // Сбросить счётчик таймера
+  TCNT4 = 0;
 
-  setupTimerCal(jtoZ);
-  stopTimerCal();
+  // Проверяем, что интервал в пределах допустимых значений
+  if (intervalMicroseconds > 0) {
+    // Рассчитываем значение для OCR4A для заданного интервала
+    unsigned long compareMatchValue = (16000000 / 1024 / (1000000 / intervalMicroseconds)) - 1;
 
-  setupTimer(jtoZ);
-  stopTimer();
+    // Ограничиваем значение OCR4A максимальным значением (16-битный таймер)
+    if (compareMatchValue > 65535) {
+      compareMatchValue = 65535;
+    }
 
-  delay(100);
-
-  // Полностью очищаем буфер от случайных символов
-  while (Serial.available()) {
-    Serial.read();
+    OCR4A = compareMatchValue;  // Устанавливаем значение для OCR4A
   }
 
-  Serial.println(logM("Ready for commands"));
+  // Устанавливаем предделитель на 1024
+  TCCR4B |= (1 << CS12) | (1 << CS10);  // 1024
 
-  // set a timestamp for loop state update
-  tmt = millis();
-
-
-  setupTimerInfo(10);
-  Serial.println(logM("EEE"));
+  // Разрешаем прерывание по совпадению с OCR4A
+  TIMSK4 |= (1 << OCIE4A);
 }
 
-void loop() {
-
-  inputCommand();
-  //no steps - always has time to send a command
-  reportLoop(10);
-
-  //getPress();
-  if (flagP && !activP && Mixer.getValue() == 0) {
-    Serial.println("Purge activated");
-    oldValue = EcoPen.getValue();
-
-    EcoPen.setValue(purgePWR);
-    AD5593RR.write_DAC(EcoPen.getId(), 5 * (EcoPen.getValue()) / 100);
-    activP = true;
-  } else if (!flagP && activP) {
-    Serial.println("Purge disactivated");
-    EcoPen.setValue(oldValue);
-    AD5593RR.write_DAC(EcoPen.getId(), 5 * (EcoPen.getValue()) / 100);
-    activP = false;
-  }
+void stopTimer4() {
+  // Сбросить все биты управления таймером
+  TCCR4B = 0;                // Останавливаем таймер
+  TIMSK4 &= ~(1 << OCIE4A);  // Отключаем прерывание
 }
 
-// Interrupt Service Routine (ISR) for button press
+
+void setupTimerCal(unsigned long intervalMicroseconds) {
+  TCCR1A = 0;  // Сбросить регистр управления
+  TCCR1B = 0;  // Сбросить регистр управления
+  TCNT1 = 0;   // Сбросить счётчик таймера
+
+  // Режим CTC
+  TCCR1B |= (1 << WGM12);
+
+  // Рассчитываем значение для OCR1A
+  unsigned long compareMatchValue = (16000000 / (64 * (1000000 / intervalMicroseconds))) - 1;
+  OCR1A = compareMatchValue;
+
+  // Установить предделитель 64
+  TCCR1B |= (1 << CS11) | (1 << CS10);
+
+  // Разрешаем прерывание по совпадению с OCR1A
+  TIMSK1 |= (1 << OCIE1A);
+}
+
+
+//updates linear timer
+void OCRLin(unsigned long to) {
+  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
+  OCR2A = cmv;
+}
+
+//updates calibration timer
+void OCRCal(unsigned long to) {
+  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
+  OCR1A = cmv;
+}
+
+void stopTimerCal() {
+  TIMSK1 &= ~(1 << OCIE1A);  // Отключаем прерывание для таймера 1
+  TCCR1B = 0;                // Останавливаем таймер 1
+}
+
+void stopTimerLin() {
+  TIMSK2 &= ~(1 << OCIE2A);  // Отключаем прерывание для таймера 2
+  TCCR2B = 0;                // Останавливаем таймер 2
+}
+
+void setupTimerLin(unsigned long intervalMicroseconds) {
+  TCCR2A = 0;  // Сбросить регистр управления
+  TCCR2B = 0;  // Сбросить регистр управления
+  TCNT2 = 0;   // Сбросить счётчик таймера
+
+  // Режим CTC
+  TCCR2A |= (1 << WGM21);
+
+  // Рассчитываем значение для OCR2A
+  unsigned long compareMatchValue = (16000000 / (1024 * (1000000 / intervalMicroseconds))) - 1;
+  OCR2A = compareMatchValue;
+
+  // Установить предделитель 1024
+  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
+
+  // Разрешаем прерывание по совпадению с OCR2A
+  TIMSK2 |= (1 << OCIE2A);
+}
+
+#pragma endregion
+
+#pragma region ISRs
 void HomeISR() {
   HomePressed = true;
   static unsigned long last_interrupt_time = 0;
@@ -1123,8 +501,9 @@ void PurgeISR() {
     lastPurgeInterruptTime = interrupt_time;
   }
 }
+#pragma endregion
 
-// Command parsing and recognition functions
+#pragma region STRING ANALYSIS INPUT
 
 bool isAlpha(char c) {
   return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
@@ -1187,7 +566,6 @@ CommandResult parse(String input) {
   return result;
 }
 
-
 String floatArrayToString(float* floatArray, int arraySize) {
   String result = "";
 
@@ -1200,8 +578,6 @@ String floatArrayToString(float* floatArray, int arraySize) {
 
   return result;
 }
-
-// Command list functions
 
 void queueBuild() {
   //Builds a list of commands. *** to start, *** to end
@@ -1378,6 +754,91 @@ void queueProcess() {
 }
 
 void queueRead() {
+
+#pragma endregion
+void setup() {
+  Serial.begin(1000000);
+  Serial.println(logM("Printer restarted, ready"));
+  Serial.print("jTO : ");
+  Serial.println(jto);
+
+  pinMode(HomePin, INPUT_PULLUP);
+  pinMode(PurgePin, INPUT_PULLUP);  // Set the button pin as an input
+  attachInterrupt(digitalPinToInterrupt(HomePin), HomeISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PurgePin), PurgeISR, RISING);
+  stepperX.invertDir();
+  //stepperY.invertDir();
+  pinMode(ESPin11, INPUT);
+  pinMode(ESPin12, INPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(sPin, OUTPUT);
+  pinMode(SRVONPin, OUTPUT);
+  pinMode(SRDY, INPUT);
+
+  //INITIALLY ALL ACTIONS ARE AVAILABLE
+  digitalWrite(sPin, HIGH);
+  digitalWrite(LED1, LOW);
+
+  Serial.println("Preparation done");
+  initializeDAC();
+  //initializing timers
+  connectUpdate();
+
+  //delay(2000);
+  //motor on by default
+  //startMotor();
+
+  // Start and stop timers to ensure their correct state
+  setupTimerLin(jtoZ);
+  stopTimerLin();
+
+  setupTimerCal(jtoZ);
+  stopTimerCal();
+
+  setupTimer(jtoZ);
+  stopTimer();
+
+  delay(100);
+
+  // Полностью очищаем буфер от случайных символов
+  while (Serial.available()) {
+    Serial.read();
+  }
+
+  Serial.println(logM("Ready for commands"));
+
+  // set a timestamp for loop state update
+  tmt = millis();
+
+
+  setupTimerInfo(10);
+  Serial.println(logM("EEE"));
+}
+
+void loop() {
+
+  inputCommand();
+  //no steps - always has time to send a command
+  reportLoop(10);
+
+  //getPress();
+  if (flagP && !activP && Mixer.getValue() == 0) {
+    Serial.println("Purge activated");
+    oldValue = EcoPen.getValue();
+
+    EcoPen.setValue(purgePWR);
+    AD5593RR.write_DAC(EcoPen.getId(), 5 * (EcoPen.getValue()) / 100);
+    activP = true;
+  } else if (!flagP && activP) {
+    Serial.println("Purge disactivated");
+    EcoPen.setValue(oldValue);
+    AD5593RR.write_DAC(EcoPen.getId(), 5 * (EcoPen.getValue()) / 100);
+    activP = false;
+  }
+}
+
+
+
   //iterating command list. Reads each of them.
   Serial.println(logM("Reading the command list : "));
   Serial.println(logM("------------------------------"));
@@ -2057,299 +1518,6 @@ void startZero() {
   flagZero = true;
 }
 
-///////// circular
-void circleWrapper() {
-
-  bool counterclockwise;
-
-  if (Movement.mode == 2) {
-    counterclockwise = false;
-  } else {
-    counterclockwise = true;
-  }
-
-  Serial.print("Performing an arc move from ");
-  Serial.print(actstep[0]);
-  Serial.print(':');
-  Serial.print(actstep[1]);
-  Serial.print(':');
-  Serial.print(actstep[2]);
-  Serial.print(" to ");
-  Serial.print(dpos[0]);
-  Serial.print(':');
-  Serial.print(dpos[1]);
-  Serial.print(':');
-  Serial.println(dpos[2]);
-
-  if (counterclockwise) {
-    Serial.println("Rotation counterclockwise");
-  } else {
-    Serial.println("Rotation clockwise");
-  }
-
-  Serial.print("Centre position is ");
-  Serial.print(actcent[0]);
-  Serial.print(':');
-  Serial.println(actcent[1]);
-
-  Serial.print("Radius is ");
-  Serial.print(rad);
-
-  //start a circle movement. All parameters are in steps
-  BrsCircle(actcent[0], actcent[1], rad, actstep[0], actstep[1], actstep[2], dpos[0], dpos[1], dpos[2], feedrate, counterclockwise);
-
-  Serial.print("Move completed. Actual stepper coordinates are : ");
-  Serial.print(actstep[0]);
-  Serial.print(":");
-  Serial.println(actstep[1]);
-}
-
-void BrsCircle(int xc, int yc, int r, int x_start, int y_start, int z_start, int x_end, int y_end, int z_end, int V, bool counterclockwise) {
-  //Z - axis calculation parameters
-  //The Z movement can only be to +Z
-  bool tcalc = false;
-  float dt;
-  float zstep;
-  float zact = 0;
-
-  stepperZ.setDirection(0);
-
-  //theta to Z coefficient, steps/rad
-  float k = (z_end - z_start) / ao;
-
-  Serial.print("Z/T is ");
-  Serial.println(k);
-
-  // x,y,z are coordinates around the circle center
-
-  long int x = x_start - xc;
-  long int y = y_start - yc;
-  long int z = z_start;
-
-  long int x_end_relative = x_end - xc;
-  long int y_end_relative = y_end - yc;
-
-  unsigned long t0;
-
-  //Serial.print("r = ");
-  //Serial.print(r);
-  long r2 = r * long(r);
-
-  //Serial.print("r*r = ");
-  //Serial.println(r2);
-
-  //Serial.print("xstart is = ");
-  //Serial.println(x);
-
-  double F;
-  int octant = getOctant(x, y, counterclockwise);
-
-  Serial.print("Octant : ");
-  Serial.println(octant);
-
-  //Serial.print("F = ");
-  //Serial.println(F);
-
-  PointLI3 rest;  //result of passing an octant;
-  while (!(abs(x - x_end_relative) <= 1 && abs(y - y_end_relative) <= 1) && !flagH) {
-    //Serial.println("----------------------------------------------------------------------------");
-    //Serial.print("New F is ");
-    //Serial.println(F);
-
-    if (counterclockwise) {
-      switch (octant) {
-        case 0:
-          rest = CCWOctant0.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant0.getNextOct();
-          break;
-        case 1:
-          rest = CCWOctant1.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant1.getNextOct();
-          break;
-        case 2:
-          rest = CCWOctant2.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant2.getNextOct();
-          break;
-        case 3:
-          rest = CCWOctant3.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant3.getNextOct();
-          break;
-        case 4:
-          rest = CCWOctant4.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant4.getNextOct();
-          break;
-        case 5:
-          rest = CCWOctant5.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant5.getNextOct();
-          break;
-        case 6:
-          rest = CCWOctant6.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant6.getNextOct();
-          break;
-        case 7:
-          rest = CCWOctant7.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CCWOctant7.getNextOct();
-          break;
-      }
-    } else {
-      switch (octant) {
-        case 0:
-          rest = CWOctant0.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant0.getNextOct();
-          break;
-        case 1:
-          rest = CWOctant1.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant1.getNextOct();
-          break;
-        case 2:
-          rest = CWOctant2.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant2.getNextOct();
-          break;
-        case 3:
-          rest = CWOctant3.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant3.getNextOct();
-          break;
-        case 4:
-          rest = CWOctant4.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant4.getNextOct();
-          break;
-        case 5:
-          rest = CWOctant5.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant5.getNextOct();
-          break;
-        case 6:
-          rest = CWOctant6.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant6.getNextOct();
-          break;
-        case 7:
-          rest = CWOctant7.passOctant(x, y, z, x_end_relative, y_end_relative, V, r, r2);
-          octant = CWOctant7.getNextOct();
-          break;
-      }
-    }
-    // updating relative coordinates
-    x = rest.x;
-    y = rest.y;
-    z = rest.z;
-
-    // updated stepper global coordinates
-
-    actstep[0] = xc + x;
-    actstep[1] = yc + y;
-    actstep[2] = z;
-
-    Serial.println("Octant passed");
-  }
-  //Serial.println("target coordinates");
-  // Выводим конечные координаты
-  //Serial.print("X: ");
-  //Serial.print(xc + x_end_relative);
-  //Serial.print(", Y: ");
-  //Serial.println(yc + y_end_relative);
-
-  //Serial.println("Stepper coordinates:");
-  // Выводим конечные координаты
-  //Serial.print("X: ");
-  //Serial.print(stepperX.position());
-  //Serial.print(", Y: ");
-  //Serial.println(stepperY.position());
-
-  //actstep[0] = stepperX.position();
-  //actstep[1] = stepperY.position();
-
-  Serial.println("New coordinates after circular move are : ");
-  Serial.print(actstep[0]);
-  Serial.print(":");
-  Serial.print(actstep[1]);
-  Serial.print(":");
-  Serial.println(actstep[2]);
-}
-
-
-int getOctant(int dx, int dy, bool counterclockwise) {
-  //Serial.println("*********************");
-  //Serial.print("X,Y is ");
-  //Serial.print(dx);
-  //Serial.print(";");
-  //Serial.println(dy);
-  if (counterclockwise) {
-    if (dx > 0 && dy >= 0) {
-      return (dx > dy) ? 0 : 1;  // Октанты 0 и 1
-    } else if (dx <= 0 && dy > 0) {
-      return (-dx >= dy) ? 3 : 2;  // Октанты 3 и 2
-    } else if (dx < 0 && dy <= 0) {
-      return (-dx > -dy) ? 4 : 5;  // Октанты 4 и 5
-    } else {
-      return (dx >= -dy) ? 7 : 6;  // Октанты 7 и 6
-    }
-  } else {
-    if (dx >= 0 && dy > 0) {
-      return (dx >= dy) ? 0 : 1;  // Октанты 0 и 1
-    } else if (dx < 0 && dy >= 0) {
-      return (-dx > dy) ? 3 : 2;  // Октанты 3 и 2
-    } else if (dx <= 0 && dy < 0) {
-      return (-dx >= -dy) ? 4 : 5;  // Октанты 4 и 5
-    } else {
-      return (dx > -dy) ? 7 : 6;  // Октанты 7 и 6
-    }
-  }
-}
-
-PointLI findCircleCenter(long int x1, long int y1, long int x2, long int y2, long int radius) {
-
-  PointLI center = { 0, 0 };
-
-  // Вычисляем середину отрезка AB
-  float midX = (x1 + x2) / 2;
-  float midY = (y1 + y2) / 2;
-
-  // Вычисляем расстояние между точками
-  float dist = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
-
-  // Проверяем, что радиус больше половины расстояния между точками
-  if (abs(radius) < dist / 2) {
-    Serial.println("Ошибка: радиус слишком мал для заданных точек.");
-    return;
-  }
-
-  // Вычисляем расстояние от середины отрезка до центра окружности
-  float h = sqrt(pow(radius, 2) - pow(dist / 2, 2));
-
-  // Вычисляем вектор, перпендикулярный к отрезку AB
-  long int perpX = y2 - y1;
-  long int perpY = x1 - x2;
-
-  // Нормализуем вектор
-  float length = sqrt(pow(perpX, 2) + pow(perpY, 2));
-  perpX /= length;
-  perpY /= length;
-
-  // Находим возможные центры
-  long int centerX1 = round(midX + h * perpX);
-  long int centerY1 = round(midY + h * perpY);
-  long int centerX2 = round(midX - h * perpX);
-  long int centerY2 = round(midY - h * perpY);
-
-  // Выбираем правильный центр в зависимости от направления
-  if (radius > 0) {
-    Serial.print("Центр окружности слева: (");
-    Serial.print(centerX2);
-    Serial.print(", ");
-    Serial.print(centerY2);
-    Serial.println(")");
-    center.x = centerX2;
-    center.y = centerY2;
-  } else {
-    Serial.print("Центр окружности справа: (");
-    Serial.print(centerX1);
-    Serial.print(", ");
-    Serial.print(centerY1);
-    Serial.println(")");
-    center.x = centerX1;
-    center.y = centerY1;
-  }
-  return center;
-}
 
 //reports the system state
 void info() {
@@ -2910,136 +2078,7 @@ void connectUpdate() {
   Serial.println(logM("Buffer clean"));
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-//Timer circular
 
-void stopTimer() {
-  TIMSK3 &= ~(1 << OCIE3A);  // Отключаем прерывание для таймера 3
-  TCCR3B = 0;                // Останавливаем таймер 3
-}
-
-void setupTimer(unsigned long intervalMicroseconds) {
-  TCCR3A = 0;  // Сбросить регистр управления
-  TCCR3B = 0;  // Сбросить регистр управления
-  TCNT3 = 0;   // Сбросить счётчик таймера
-
-  // Режим CTC
-  TCCR3B |= (1 << WGM32);
-
-  // Рассчитываем значение для OCR3A
-  unsigned long compareMatchValue = (16000000 / (1024 * (1000000 / intervalMicroseconds))) - 1;
-  OCR3A = compareMatchValue;
-
-  // Установить предделитель 256
-  TCCR3B |= (1 << CS32);
-
-  // Разрешаем прерывание по совпадению с OCR3A
-  TIMSK3 |= (1 << OCIE3A);
-}
-
-
-
-
-// Information timer
-
-void setupTimerInfo(unsigned long intervalMicroseconds) {
-  // Сбросить все регистры управления
-  TCCR4A = 0;
-  TCCR4B = 0;
-
-  // Установить режим CTC (Clear Timer on Compare Match)
-  TCCR4B |= (1 << WGM12);
-
-  // Сбросить счётчик таймера
-  TCNT4 = 0;
-
-  // Проверяем, что интервал в пределах допустимых значений
-  if (intervalMicroseconds > 0) {
-    // Рассчитываем значение для OCR4A для заданного интервала
-    unsigned long compareMatchValue = (16000000 / 1024 / (1000000 / intervalMicroseconds)) - 1;
-
-    // Ограничиваем значение OCR4A максимальным значением (16-битный таймер)
-    if (compareMatchValue > 65535) {
-      compareMatchValue = 65535;
-    }
-
-    OCR4A = compareMatchValue;  // Устанавливаем значение для OCR4A
-  }
-
-  // Устанавливаем предделитель на 1024
-  TCCR4B |= (1 << CS12) | (1 << CS10);  // 1024
-
-  // Разрешаем прерывание по совпадению с OCR4A
-  TIMSK4 |= (1 << OCIE4A);
-}
-
-void stopTimer4() {
-  // Сбросить все биты управления таймером
-  TCCR4B = 0;                // Останавливаем таймер
-  TIMSK4 &= ~(1 << OCIE4A);  // Отключаем прерывание
-}
-
-
-void setupTimerCal(unsigned long intervalMicroseconds) {
-  TCCR1A = 0;  // Сбросить регистр управления
-  TCCR1B = 0;  // Сбросить регистр управления
-  TCNT1 = 0;   // Сбросить счётчик таймера
-
-  // Режим CTC
-  TCCR1B |= (1 << WGM12);
-
-  // Рассчитываем значение для OCR1A
-  unsigned long compareMatchValue = (16000000 / (64 * (1000000 / intervalMicroseconds))) - 1;
-  OCR1A = compareMatchValue;
-
-  // Установить предделитель 64
-  TCCR1B |= (1 << CS11) | (1 << CS10);
-
-  // Разрешаем прерывание по совпадению с OCR1A
-  TIMSK1 |= (1 << OCIE1A);
-}
-
-
-//updates linear timer
-void OCRLin(unsigned long to) {
-  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
-  OCR2A = cmv;
-}
-
-//updates calibration timer
-void OCRCal(unsigned long to) {
-  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
-  OCR1A = cmv;
-}
-
-void stopTimerCal() {
-  TIMSK1 &= ~(1 << OCIE1A);  // Отключаем прерывание для таймера 1
-  TCCR1B = 0;                // Останавливаем таймер 1
-}
-
-void stopTimerLin() {
-  TIMSK2 &= ~(1 << OCIE2A);  // Отключаем прерывание для таймера 2
-  TCCR2B = 0;                // Останавливаем таймер 2
-}
-
-void setupTimerLin(unsigned long intervalMicroseconds) {
-  TCCR2A = 0;  // Сбросить регистр управления
-  TCCR2B = 0;  // Сбросить регистр управления
-  TCNT2 = 0;   // Сбросить счётчик таймера
-
-  // Режим CTC
-  TCCR2A |= (1 << WGM21);
-
-  // Рассчитываем значение для OCR2A
-  unsigned long compareMatchValue = (16000000 / (1024 * (1000000 / intervalMicroseconds))) - 1;
-  OCR2A = compareMatchValue;
-
-  // Установить предделитель 1024
-  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
-
-  // Разрешаем прерывание по совпадению с OCR2A
-  TIMSK2 |= (1 << OCIE2A);
-}
 
 
 //asking ADAC for values
@@ -3094,20 +2133,6 @@ ISR(TIMER2_COMPA_vect) {
   lastStep = micros();
 }
 
-// Circular ISR
-ISR(TIMER3_COMPA_vect) {
-  if (mX) {
-    stepperX.step();
-  }
-  if (mY) {
-    stepperY.step();
-  }
-  if (mZ) {
-    stepperZ.step();
-  }
-  tickWas = true;
-  lastStep = micros();
-}
 
 //changes the output to be shown in app log
 String logM(String s) {
