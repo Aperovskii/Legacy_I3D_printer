@@ -41,11 +41,11 @@ CommandManager::CommandManager() {
 
 void CommandManager::handleCommand(String command) {
   command.trim();
-  //Serial.println(logM("Command received: '"+command));
+  Serial.println(logM("Command received: '"+command));
   //Serial.println(logM("', length: "+String(command.length())));
   //command.toUpperCase();
   for (int i = 0; i < commandCount; ++i) {
-    //Serial.println(logM(commandTable[i].commandName));
+    Serial.println(logM(commandTable[i].commandName));
     if (command.equals(commandTable[i].commandName)) {
       CommandFunction func = commandTable[i].function;
       (this->*func)();

@@ -5,6 +5,9 @@
 #include "CommandManager.h"
 #include "AD5593R.h"
 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
 #include <Arduino.h>
 /// COMPACT OOP CIRULAR
 
@@ -352,7 +355,7 @@ int targetV;
 
 //limit velocity - it is a highest safe speed to start from
 
-int limspeed = 1500;
+int limspeed = 5500;
 
 //Accelerating mode will make the interval smaller during this number of steps
 //Default value, will be recalculated
@@ -382,90 +385,102 @@ volatile bool pZ;
 
 // FUNCTIONSSSSSSS//////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 #pragma region Timer operating functions
 
 // Information timer
 
 void setupTimerInfo(unsigned long intervalMicroseconds) {
-  // Сбросить все регистры управления
-  TCCR4A = 0;
-  TCCR4B = 0;
+    cli();  // Выключаем глобальные прерывания на время настройки
 
-  // Установить режим CTC (Clear Timer on Compare Match)
-  TCCR4B |= (1 << WGM12);
+    // Сброс всех регистров управления таймером
+    TCCR4A = 0;
+    TCCR4B = 0;
+    TCNT4  = 0;  // Сброс счётчика таймера
 
-  // Сбросить счётчик таймера
-  TCNT4 = 0;
+    // Режим CTC (Clear Timer on Compare Match)
+    TCCR4B |= (1 << WGM12);
 
-  // Проверяем, что интервал в пределах допустимых значений
-  if (intervalMicroseconds > 0) {
-    // Рассчитываем значение для OCR4A для заданного интервала
-    unsigned long compareMatchValue = (16000000 / 1024 / (1000000 / intervalMicroseconds)) - 1;
+    if (intervalMicroseconds > 0) {
+        // Рассчёт значения для OCR4A
+        uint32_t compareMatchValue = (16000000UL / 1024UL / (1000000UL / intervalMicroseconds)) - 1;
 
-    // Ограничиваем значение OCR4A максимальным значением (16-битный таймер)
-    if (compareMatchValue > 65535) {
-      compareMatchValue = 65535;
+        // Ограничиваем максимум 16 бит
+        if (compareMatchValue > 65535UL) {
+            compareMatchValue = 65535UL;
+        }
+
+        OCR4A = static_cast<uint16_t>(compareMatchValue); // Устанавливаем OCR4A
     }
 
-    OCR4A = compareMatchValue;  // Устанавливаем значение для OCR4A
-  }
+    // Устанавливаем предделитель 1024 (CS12 и CS10)
+    TCCR4B |= (1 << CS12) | (1 << CS10);
 
-  // Устанавливаем предделитель на 1024
-  TCCR4B |= (1 << CS12) | (1 << CS10);  // 1024
+    // Разрешаем прерывание по совпадению с OCR4A
+    TIMSK4 |= (1 << OCIE4A);
 
-  // Разрешаем прерывание по совпадению с OCR4A
-  TIMSK4 |= (1 << OCIE4A);
+    sei();  // Включаем глобальные прерывания
 }
 
 void stopTimer4() {
-  // Сбросить все биты управления таймером
-  TCCR4B = 0;                // Останавливаем таймер
-  TIMSK4 &= ~(1 << OCIE4A);  // Отключаем прерывание
+    cli();                  // Выключаем глобальные прерывания на время изменения
+    TCCR4B = 0;             // Останавливаем таймер (сбрасываем предделитель и режим)
+    TIMSK4 &= ~(1 << OCIE4A); // Отключаем прерывание по совпадению с OCR4A
+    sei();                  // Включаем глобальные прерывания обратно
 }
 
-
 void setupTimerCal(unsigned long intervalMicroseconds) {
-  TCCR1A = 0;  // Сбросить регистр управления
-  TCCR1B = 0;  // Сбросить регистр управления
-  TCNT1 = 0;   // Сбросить счётчик таймера
+    cli();  // Выключаем глобальные прерывания на время настройки
 
-  // Режим CTC
-  TCCR1B |= (1 << WGM12);
+    // Сброс всех регистров управления таймером
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCNT1  = 0;  // Сброс счётчика таймера
 
-  // Рассчитываем значение для OCR1A
-  unsigned long compareMatchValue = (16000000 / (64 * (1000000 / intervalMicroseconds))) - 1;
-  OCR1A = compareMatchValue;
+    // Режим CTC (Clear Timer on Compare Match)
+    TCCR1B |= (1 << WGM12);
 
-  // Установить предделитель 64
-  TCCR1B |= (1 << CS11) | (1 << CS10);
+    // Расчёт значения для OCR1A
+    uint16_t compareMatchValue = (16000000UL / (64UL * (1000000UL / intervalMicroseconds))) - 1;
+    OCR1A = compareMatchValue;  // Устанавливаем OCR1A
 
-  // Разрешаем прерывание по совпадению с OCR1A
-  TIMSK1 |= (1 << OCIE1A);
+    // Установка предделителя 64 (CS11 и CS10)
+    TCCR1B |= (1 << CS11) | (1 << CS10);
+
+    // Разрешаем прерывание по совпадению с OCR1A
+    TIMSK1 |= (1 << OCIE1A);
+
+    sei();  // Включаем глобальные прерывания
 }
 
 void setupTimer(unsigned long intervalMicroseconds) {
-  TCCR3A = 0;  // Сбросить регистр управления
-  TCCR3B = 0;  // Сбросить регистр управления
-  TCNT3 = 0;   // Сбросить счётчик таймера
+    cli();  // Выключаем глобальные прерывания на время настройки
 
-  // Режим CTC
-  TCCR3B |= (1 << WGM32);
+    // Сброс всех регистров управления таймером
+    TCCR3A = 0;
+    TCCR3B = 0;
+    TCNT3  = 0;  // Сброс счётчика таймера
 
-  // Рассчитываем значение для OCR3A
-  unsigned long compareMatchValue = (16000000 / (1024 * (1000000 / intervalMicroseconds))) - 1;
-  OCR3A = compareMatchValue;
+    // Режим CTC (Clear Timer on Compare Match)
+    TCCR3B |= (1 << WGM32);
 
-  // Установить предделитель 256
-  TCCR3B |= (1 << CS32);
+    // Расчёт значения для OCR3A
+    uint16_t compareMatchValue = (16000000UL / (1024UL * (1000000UL / intervalMicroseconds))) - 1;
+    OCR3A = compareMatchValue;  // Устанавливаем OCR3A
 
-  // Разрешаем прерывание по совпадению с OCR3A
-  TIMSK3 |= (1 << OCIE3A);
+    // Установка предделителя 256 (CS32)
+    TCCR3B |= (1 << CS32);
+
+    // Разрешаем прерывание по совпадению с OCR3A
+    TIMSK3 |= (1 << OCIE3A);
+
+    sei();  // Включаем глобальные прерывания
 }
 
 void stopTimer() {
-  TIMSK3 &= ~(1 << OCIE3A);  // Отключаем прерывание для таймера 3
-  TCCR3B = 0;                // Останавливаем таймер 3
+    cli();                    // Выключаем глобальные прерывания на время изменения
+    TIMSK3 &= ~(1 << OCIE3A); // Отключаем прерывание по совпадению с OCR3A
+    TCCR3B = 0;               // Останавливаем таймер 3 (сбрасываем предделитель и режим)
+    sei();                    // Включаем глобальные прерывания обратно
 }
 // service function to know if timers are running
 bool timersActive() {
@@ -476,45 +491,75 @@ bool timersActive() {
 }
 //updates linear timer
 void OCRLin(unsigned long to) {
-  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
-  OCR2A = cmv;
+    // Рассчёт значения для OCR2A
+    uint16_t cmv = (16000000UL / (1024UL * (1000000UL / to))) - 1;
+
+    // Ограничиваем максимум для 8-битного регистра OCR2A
+    if (cmv > 255) {
+        cmv = 255;
+    }
+
+    OCR2A = static_cast<uint8_t>(cmv);
 }
 
 //updates calibration timer
 void OCRCal(unsigned long to) {
-  unsigned long cmv = (16000000 / (1024 * (1000000 / to))) - 1;
-  OCR1A = cmv;
+    // Расчёт значения для OCR1A
+    uint32_t cmv = (16000000UL / (1024UL * (1000000UL / to))) - 1;
+
+    // Ограничиваем максимум 16-битного регистра
+    if (cmv > 65535UL) {
+        cmv = 65535UL;
+    }
+
+    OCR1A = static_cast<uint16_t>(cmv);
 }
 
 void stopTimerCal() {
-  TIMSK1 &= ~(1 << OCIE1A);  // Отключаем прерывание для таймера 1
-  TCCR1B = 0;                // Останавливаем таймер 1
+    cli();                    // Выключаем глобальные прерывания на время изменения
+    TIMSK1 &= ~(1 << OCIE1A); // Отключаем прерывание по совпадению с OCR1A
+    TCCR1B = 0;               // Останавливаем таймер 1 (сбрасываем предделитель и режим)
+    sei();                    // Включаем глобальные прерывания обратно
 }
 
 void stopTimerLin() {
-  TIMSK2 &= ~(1 << OCIE2A);  // Отключаем прерывание для таймера 2
-  TCCR2B = 0;                // Останавливаем таймер 2
+    cli();                    // Выключаем глобальные прерывания на время изменения
+    TIMSK2 &= ~(1 << OCIE2A); // Отключаем прерывание по совпадению с OCR2A
+    TCCR2B = 0;               // Останавливаем таймер 2 (сбрасываем предделитель и режим)
+    sei();                    // Включаем глобальные прерывания обратно
 }
 
 void setupTimerLin(unsigned long intervalMicroseconds) {
-  TCCR2A = 0;  // Сбросить регистр управления
-  TCCR2B = 0;  // Сбросить регистр управления
-  TCNT2 = 0;   // Сбросить счётчик таймера
+    cli();  // Выключаем глобальные прерывания на время настройки
 
-  // Режим CTC
-  TCCR2A |= (1 << WGM21);
+    // Сброс всех регистров управления таймером
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2  = 0;  // Сброс счётчика таймера
 
-  // Рассчитываем значение для OCR2A
-  unsigned long compareMatchValue = (16000000 / (1024 * (1000000 / intervalMicroseconds))) - 1;
-  OCR2A = compareMatchValue;
+    // Режим CTC (Clear Timer on Compare Match)
+    TCCR2A |= (1 << WGM21);
 
-  // Установить предделитель 1024
-  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
+    if (intervalMicroseconds > 0) {
+        // Расчёт значения для OCR2A
+        uint16_t compareMatchValue = (16000000UL / (1024UL * (1000000UL / intervalMicroseconds))) - 1;
 
-  // Разрешаем прерывание по совпадению с OCR2A
-  TIMSK2 |= (1 << OCIE2A);
+        // Ограничиваем максимум для 8-битного регистра OCR2A
+        if (compareMatchValue > 255) {
+            compareMatchValue = 255;
+        }
+
+        OCR2A = static_cast<uint8_t>(compareMatchValue); // Устанавливаем OCR2A
+    }
+
+    // Установка предделителя 1024 (CS22 | CS21 | CS20)
+    TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
+
+    // Разрешаем прерывание по совпадению с OCR2A
+    TIMSK2 |= (1 << OCIE2A);
+
+    sei();  // Включаем глобальные прерывания
 }
-
 #pragma endregion
 
 #pragma region TIMER ISRs
@@ -1237,6 +1282,7 @@ void stopEmpty() {
 
 #pragma region LINEAR MOVES
 
+//FLAT 2D SPEED CALCULATION
 void lineTO(long int dx, long int dy, int s, unsigned long& atime) {
   unsigned long TO;
   float cf;
@@ -1306,9 +1352,9 @@ void BrsLine() {
     //ticker set
     tickWas = false;
 
-    // Starting a timer with constant speed
+    // Starting the timer
 
-    setupTimerLin(jtoZ);
+    setupTimerLin(frTO(feedrate));
 
     while (actstep[2] != dpos[2]) {
 
@@ -2140,23 +2186,55 @@ String logM(String s) {
   return "#" + s;
 }
 
-void demand(String question, String name, float& param) {
+void demand(const String& question, const String& name, float& param) {
+    // Очистка буфера
+    while (Serial.available() > 0) Serial.read();
 
-  Serial.println(question);
-  delay(50);
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');  // Читаем строку до символа новой строки
-    input.trim();                                 // Убираем пробелы и переносы строк
-    if (input.length() == 0) {
-      Serial.println(logM("Unable to read parameter " + name + " from the app. " + name + " set to default"));
-    } else {
-      float num = input.toFloat();
-      param = num;
-      Serial.println(logM(name + " is set to " + String(num) + "%"));
+    // Отправляем вопрос
+    Serial.println(question);
+
+    String input = "";
+    String raw = "";
+    unsigned long start = millis();
+    const unsigned long TIMEOUT = 2000; // 2 секунды таймаут
+
+    while (millis() - start < TIMEOUT) {
+        while (Serial.available() > 0) {
+            char c = Serial.read();
+
+            // Логируем все символы
+            if (c == '\r') raw += "[\\r]";
+            else if (c == '\n') raw += "[\\n]";
+            else if (c == '\t') raw += "[\\t]";
+            else if (c < 32 || c > 126) raw += "[0x" + String((uint8_t)c, HEX) + "]";
+            else raw += c;
+
+            // Если это цифра или разделитель (точка или запятая) — собираем число
+            if ((c >= '0' && c <= '9') || c == '.' || c == ',') {
+                if (c == ',') c = '.'; // заменяем запятую на точку
+                input += c;
+            } else if (input.length() > 0) {
+                // Пришёл нечисловой символ — число закончилось
+                goto END_LOOP;
+            }
+
+            // Если символ конца строки, тоже заканчиваем
+            if (c == '\n') goto END_LOOP;
+        }
     }
-  } else {
-    Serial.println(logM("Unable to read parameter " + name + " from the app. " + name + " set to default"));
-  }
+
+END_LOOP:
+
+    input.trim();
+    Serial.println(logM("RAW INPUT: " + raw));
+
+    if (input.length() == 0) {
+        Serial.println(logM("Unable to read parameter " + name + ". " + name + " set to default"));
+    } else {
+        float num = input.toFloat();
+        param = num;
+        Serial.println(logM(name + " is set to " + String(num) + "%"));
+    }
 }
 
 void info() {
@@ -2291,60 +2369,33 @@ void initializeDAC() {
 
 // when connected, the actual parameters are downloaded into the app
 void connectUpdate() {
-
-  delay(50);
-  // update ecopen dosage, ml/L
-
   Serial.println("epen" + String(EcoPen.getValue()));
-
-  delay(50);
-  // update pump
   Serial.println("vpro" + String(PumpPro.getValue()));
-
-  delay(50);
-
-  // update mixer
   Serial.println("mix" + String(Mixer.getValue()));
-
-  delay(50);
-
   Serial.println("frate" + String(feedrate / mtos));
 
-  delay(50);
-  // zeroing
+  if (flagZero) Serial.println("zzz");
+  else Serial.println("nzz");
 
-  if (flagZero) {
-    Serial.println("zzz");
-  } else {
-    Serial.println("nzz");
-  }
-
-  /// ASK THE APP ABOUT ACTUAL +- STEP in%
-  // first - all three together
-
-  delay(50);
   demand("stepA?", "Ecopen step, %", stepEco);
-  delay(50);
+  delay(10);
   demand("stepB?", "Pump step, %", stepPump);
-  delay(50);
+  delay(10);
   demand("stepC?", "Mixer step, %", stepMix);
 
-  delay(200);
+  Serial.println(logM("Steps OK"));
 
   serialInitialized = true;
 
-  while (Serial.available()) {
-    Serial.read();  // просто считываем и выбрасываем все байты
-  }
-  Serial.println(logM("Buffer clean"));
-};
+  Serial.println(logM("Buffer clean")); // можно оставить
+}
 
 #pragma endregion
 
 
 
 void setup() {
-  Serial.begin(1000000);
+  Serial.begin(115200);
   Serial.println(logM("Printer restarted, ready"));
   Serial.print("jTO : ");
   Serial.println(jto);
@@ -2370,11 +2421,12 @@ void setup() {
   initializeDAC();
   //initializing timers
   connectUpdate();
-
+  
+  Serial.println(logM("ConnectUpdate OK"));
   //delay(2000);
   //motor on by default
   //startMotor();
-
+  delay(1000);
   // Start and stop timers to ensure their correct state
   setupTimerLin(jtoZ);
   stopTimerLin();
@@ -2385,7 +2437,9 @@ void setup() {
   setupTimer(jtoZ);
   stopTimer();
 
-  delay(100);
+  Serial.println(logM("TIMERS OK"));
+  delay(1000);
+
 
   // Полностью очищаем буфер от случайных символов
   while (Serial.available()) {
@@ -2423,30 +2477,3 @@ void loop() {
     activP = false;
   }
 }
-
-
-//special mode to de-grip the shaft of the pump
-
-// checks input and takes actions
-
-// The state reporting string is functioning as following - if doing steps after each step one char from a line is sent. Line is global and generated when last was
-
-// service function to create a string including pressure, motor torque, coordinates and any other information
-
-// ADD HERE ANY OTHER TRACKING DATA
-
-
-
-
-
-
-
-/// function to stop the pump in case when the tank is empty
-
-
-// function that gets values and sends them - to be included in loop fragments - after steps
-
-//Sends data while in loop every ms millis
-
-/////////////////////////// EXPERIMENTAL - BINARY COM
-
