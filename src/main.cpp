@@ -1616,6 +1616,7 @@ void startZero() {
 }
 
 void lineWrapper() {
+  Serial.println(logM("I3D : Linear movement activated"));
   Serial.print("Performing a linear move from ");
   Serial.print(actstep[0]);
   Serial.print(':');
@@ -1636,6 +1637,7 @@ void lineWrapper() {
   Serial.print(actstep[0]);
   Serial.print(":");
   Serial.println(actstep[1]);
+  Serial.println(logM("I3D : Line wrapper exits"));
 
   //calculate approximate mm position
 }
@@ -2053,7 +2055,7 @@ void clearQueue() {
 //main function
 void queueProcess() {
   //iterating command list. Reads each of them.
-  Serial.println("Parsing the command list : ");
+  Serial.println(logM("Parsing the command list : "));
   for (int i = 0; i < queueCount; i++) {
     Serial.println("------------------------------");
     int index = (queueHead + i) % QUEUE_SIZE;
@@ -2068,7 +2070,7 @@ void queueProcess() {
     r = parse(commandQueue[index]);
     while (r.isValid) {
       Serial.println(r.firstLetter);
-      //Serial.println(logM(String(r.firstNumber)));
+      Serial.println(logM(String(r.firstNumber)));
       identifyCommand(r.firstLetter, r.firstNumber);
       r = parse(r.remainingString);
     }
@@ -2076,9 +2078,9 @@ void queueProcess() {
     //In case of conflict, centre coordinate is taken, R is ignored
 
     if ((flagM && !flagR && (flagX || flagY || flagZ)) || (flagM && flagR && (flagX || flagY || flagZ) && (flagCent || flagRad))) {
-      //Serial.println("The command is a G-command to move");
-      //Serial.print("The move is ");
-      //Serial.println(Movement.mode);
+      Serial.println(logM("The command is a G-command to move"));
+      Serial.print(logM("The move is "));
+      Serial.println(Movement.mode);
       Serial.print("Movement.posn is ");
       Serial.print(Movement.posn[0]);
       Serial.print(':');
@@ -2109,13 +2111,20 @@ void queueProcess() {
       } else {
         dpos[2] = actstep[2];
       }
+    
+      if (flagZero) {
+        Serial.println("Move is OK. Executing");
+        if (Movement.mode == 0 || Movement.mode == 1) {
+          lineWrapper();
+          Serial.println("Move completed");
+        } else if (Movement.mode == 2 || Movement.mode == 3) {
+          Serial.println(logM("CIRCULAR NOT SUPPORTED"));
+        }
 
-      //Centre is calculated in steps using radius, else from relative coordinates
-      if (Movement.mode == 2 || Movement.mode == 3) {
-        Serial.println(logM("CIRCULAR MOVES NOT SUPPORTED"));
       } else {
         Serial.println("Printer not zeroed - move ignored");
       }
+
     } else if (flagD) {
       Serial.println("The command is a M-command to dose");
       Serial.print("Active pump is ");
