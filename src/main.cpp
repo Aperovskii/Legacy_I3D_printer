@@ -1645,10 +1645,12 @@ void lineWrapper() {
 void evacuate() {
   // it is a move that saves the printed piece by evacuating the table and leaving the concrete fall into the bin
   //keeping the old speed
+  Serial.println(logM("I3D : STOP AND EVACUATE"));
+
   oldValue = feedrate;
 
   // setting rapid move speed (pre-defined for now)
-  feedrate = G0Speed;
+  feedrate = 1000;
 
   // target coordinates:
 
@@ -1661,6 +1663,11 @@ void evacuate() {
   flagH = 1;
   //restore previous speed
   feedrate = oldValue;
+
+  clearQueue();
+
+  Serial.println("I3D : STOP PERFORMED. QUEUE CLEARED, PRINTER READY");
+
 }
 
 #pragma endregion
@@ -2049,7 +2056,7 @@ void clearQueue() {
   queueHead = 0;
   queueTail = 0;
   queueCount = 0;
-  Serial.println("Очередь команд очищена.");
+  Serial.println(logM("I3D: Command list empty"));
 }
 
 //main function
